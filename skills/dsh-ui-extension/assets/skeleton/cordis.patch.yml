@@ -1,0 +1,5 @@
+# One bundle layer. It only inserts a row; the row's package name is what the
+# Loader resolves, so this file stays short on purpose.
+- insert:
+    - id: hello-ui
+      name: dsh-hello-ui

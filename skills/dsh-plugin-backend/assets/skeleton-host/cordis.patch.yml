@@ -1,0 +1,7 @@
+# One bundle layer: a single row. Config stays in the row so a user can
+# override it from their profile patch without editing this package.
+- insert:
+    - id: hello-host
+      name: dsh-hello-host
+      config:
+        enabled: true
