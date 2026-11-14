@@ -224,3 +224,4 @@ dsh --profile <p> --dump-config     # 确认层
 | 改了没生效 | 没有 `touch` 引入方 / 没重载 / 没 build | 按 `reference/compat.md` |
 | 测试打真模型 | 没 mock | 假 agent + 临时目录 |
 | 升级后数据坏了 | 私改会话工件 | 只用公开只读接口 |
+| “明明实现了但不生效”，且与 OS 交互有关 | 宿主环境限制（如进程以管理员运行时 Windows 拒绝文件拖放） | 启动日志里记环境事实（`elevated` 等），先证明能力可用再排代码 |

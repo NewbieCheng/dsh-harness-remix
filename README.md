@@ -3,6 +3,9 @@
 > 两套可直接安装的 DSH skill：**改界面** 和 **写后端**。
 > 不绑定具体插件；给任何在 DSH 上做扩展的人或 AI 用。
 > 基线：**DSH 0.2.2-rc.3** / 116 个客户端插槽 / 105 个 Host 服务（见 [`COMPAT.md`](COMPAT.md)）。
+>
+> 新增案例：[`docs/CASE-drop-refused.md`](docs/CASE-drop-refused.md) —— 文件拖不进窗口时，
+> 先证明事件到了哪一层（Windows UIPI、iframe `sandbox`、探针纪律）。
 
 ## 两套 skill
 
@@ -62,7 +65,7 @@ node scripts/verify-skills.mjs        # 死链、未知槽、Factory 误用、�
 │  ├─ dsh-ui-extension/{SKILL.md, reference/*, assets/skeleton}
 │  └─ dsh-plugin-backend/{SKILL.md, reference/*, assets/skeleton-host}
 ├─ scripts/{extract-slots,sync-shared,verify-skills,install-skills}.mjs
-└─ docs/{CASE-codex-ui.md, CASE-archive-manager.md, AUDIT-2026-11.md}
+└─ docs/{CASE-codex-ui.md, CASE-archive-manager.md, CASE-drop-refused.md, AUDIT-2026-11.md}
 ```
 
 ## 边界

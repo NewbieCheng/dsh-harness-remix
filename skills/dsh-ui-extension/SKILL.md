@@ -184,3 +184,4 @@ ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
 | 改了没生效 | 没 build / 没刷新 / 没重载 | 按 `reference/compat.md` 的生效矩阵 |
 | 亮色模式瞎眼 | 写死颜色 | 换 token |
 | 装配后官方侧栏消失 | 把官方行 disable 了 | 恢复官方行，改用增强 |
+| 文件拖不进来、光标是“禁止” | 宿主窗口以管理员运行（UIPI 拦掉整窗的 OLE 拖放），或自建 iframe 带 `sandbox` | **先分层取证**：宿主页与子 frame 各挂捕获监听（无类型过滤），再查进程 `integrity` 与 `sandbox`；别先改 handler |
