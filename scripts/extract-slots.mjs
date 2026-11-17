@@ -35,12 +35,13 @@ function parseArgs(argv) {
     if (arg === '--check') args.check = true
     else if (arg === '--from-inspect') args.inspect = argv[++i]
     else if (arg === '--catalog') args.catalog = argv[++i]
+    else if (arg === '--render-snapshot') args.renderSnapshot = true
     else if (arg === '--version') args.version = argv[++i]
     else if (arg === '--date') args.date = argv[++i]
     else if (arg === '--out') args.out = resolve(argv[++i])
     else throw new Error(`unknown argument: ${arg}`)
   }
-  if (args.inspect === undefined && args.check === false) {
+  if (args.inspect === undefined && args.check === false && !args.renderSnapshot) {
     throw new Error('--from-inspect <slot-tree.json> is required')
   }
   return args
@@ -146,7 +147,7 @@ function render(snapshot) {
   lines.push('|---|---|---|')
   lines.push('| 类型 | 单占/列表/键控/竞选/包裹 | 列表才可“加”；单占注册前先确认能否替换 |')
   lines.push('| 作用域 | root / session / session-maybe | session 槽只在有会话时存在 |')
-  lines.push('| 替换风险 | 可加 / 替换 / 包裹 | 替换 = 单占或键控槽，**已有人占位时注册即替换**；可加 = 列表，不动官方 |')
+  lines.push('| 替换风险 | 可加 / 替换 / 包裹 | 替换风险依实际占位和注册语义判断；列表重用已有 id 也可能替换 |')
   lines.push('| 声明者 | 谁挂了才存在（`父：` 表示由该父槽的 entry 声明，包名待采集） | 声明者没挂载时注册会抛错，要用 `ctx.slots.inject` 等 |')
   lines.push('')
   lines.push('注意：`替换` 是**该槽的最坏情况**。单占槽若当前无人注册（例如 `sidebar.brand.mark`），直接注册就生效，不构成替换；')
@@ -181,10 +182,31 @@ function render(snapshot) {
   return lines.join('\n')
 }
 
+function collect(raw, catalog) {
+  if (!Array.isArray(raw?.data?.trees) || raw.data.trees.length === 0) throw new Error('inspect tree is missing or empty')
+  const slots = new Map()
+  const factories = new Set()
+  for (const tree of raw.data.trees) walk(tree, null, slots, factories, catalog)
+  if (slots.size === 0 || !slots.has('root')) throw new Error('inspect tree is incomplete: root slot missing')
+  for (const slot of slots.values()) {
+    if (!slot.key || !slot.kind || !slot.scope) throw new Error('inspect tree contains incomplete slot data')
+  }
+  return { slots, factories }
+}
+
 const args = parseArgs(process.argv.slice(2))
 const outRoot = args.out
 const snapshotPath = join(outRoot, 'shared', 'slots.snapshot.json')
 const mdPath = join(outRoot, 'skills', 'dsh-ui-extension', 'reference', 'slots.generated.md')
+
+if (args.renderSnapshot) {
+  if (args.inspect || args.check) throw new Error('--render-snapshot cannot combine with --check or --from-inspect')
+  const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'))
+  if (!Array.isArray(snapshot.slots) || !snapshot.slots.some(slot => slot.key === 'root') || !Array.isArray(snapshot.factories)) throw new Error('invalid snapshot')
+  writeFileSync(mdPath, `${render(snapshot)}\n`, 'utf8')
+  process.stdout.write('rendered existing snapshot; no live data refreshed\n')
+  process.exit(0)
+}
 
 if (args.check) {
   if (!existsSync(snapshotPath)) throw new Error(`missing ${snapshotPath}; run the generator once`)
@@ -192,16 +214,15 @@ if (args.check) {
   const catalog = readCatalog(args.catalog)
   const treePath = args.inspect
   if (treePath === undefined) {
-    process.stdout.write(`snapshot: ${current.slots.length} slots, ${current.factories.length} factories\n`)
+    if (!existsSync(mdPath) || readFileSync(mdPath, 'utf8') !== `${render(current)}\n`) throw new Error('generated slot markdown is stale')
+    process.stdout.write(`snapshot: ${current.slots.length} slots, ${current.factories.length} factories; markdown current (live tree not checked)\n`)
     process.exit(0)
   }
   const raw = JSON.parse(readFileSync(treePath, 'utf8'))
-  const slots = new Map()
-  const factories = new Set()
-  for (const tree of raw.data.trees) walk(tree, null, slots, factories, catalog)
+  const { slots, factories } = collect(raw, catalog)
   const before = JSON.stringify(current.slots)
   const after = JSON.stringify([...slots.values()].sort((a, b) => a.key.localeCompare(b.key)))
-  if (before !== after) {
+  if (before !== after || JSON.stringify(current.factories) !== JSON.stringify([...factories].sort()) || !existsSync(mdPath) || readFileSync(mdPath, 'utf8') !== `${render(current)}\n`) {
     process.stderr.write('slot snapshot is stale: regenerate with scripts/extract-slots.mjs\n')
     process.exit(1)
   }
@@ -211,9 +232,7 @@ if (args.check) {
 
 const raw = JSON.parse(readFileSync(args.inspect, 'utf8'))
 const catalog = readCatalog(args.catalog)
-const slots = new Map()
-const factories = new Set()
-for (const tree of raw.data.trees) walk(tree, null, slots, factories, catalog)
+const { slots, factories } = collect(raw, catalog)
 
 const snapshot = {
   dshVersion: args.version ?? 'unknown',

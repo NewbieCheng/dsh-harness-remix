@@ -1,6 +1,6 @@
 ---
 name: dsh-plugin-backend
-description: DSH（DeepSeek Harness）插件后端开发规范：bundle/profile 清单与版本闸门、Cordis 生命周期与依赖注入、Host 服务、Web 路由与鉴权、typert 类型化 RPC、storageDomain 存储、插件设置、会话数据只读访问、异常处理与测试发布。当要给 DSH 插件加后端能力、接自己的服务/模型、读写插件数据、做前后端协同、或把插件发布成可安装 bundle 时使用。
+description: DSH（DeepSeek Harness）插件后端开发规范：bundle/profile 清单与版本闸门、Cordis 生命周期与依赖注入、Host 服务、Web 路由与鉴权、typert 类型化 RPC、storageDomain 存储、插件设置、原生会话驱动与对话同步、ACP 桥接、预设与技能隔离、异常处理与测试发布。当要给 DSH 插件加后端能力、接自己的服务/模型、读写插件数据、做前后端协同、或把插件发布成可安装 bundle 时使用。
 ---
 
 # DSH 插件后端（Host / Cordis / 服务 / RPC / 存储）
@@ -15,12 +15,14 @@ description: DSH（DeepSeek Harness）插件后端开发规范：bundle/profile 
 ```mermaid
 flowchart TD
   Q{"要做什么？"} -->|"加一个可调用的能力"| S["Host 服务 / 工具"]
-  Q -->|"给前端取数据/发命令"| R{"数据敏感吗？"}
-  R -->|"是（写操作/业务数据）"| T["typert 类型化 RPC"]
-  R -->|"否（健康检查/本地设置）"| W["Web 路由 + requestRejection"]
+  Q -->|"前端取数据/发命令"| R{"传输和调用契约？"}
+  R -->|"已核实类型化调用"| T["RPC + 认证授权"]
+  R -->|"流式/静态/HTTP"| W["Web 路由 + 认证授权"]
   Q -->|"持久化插件自己的数据"| D["storageDomain 域 / 原子写设置文件"]
-  Q -->|"读 DSH 会话/工作区"| E["sessions / sessionPersistence / workspaceRegistry"]
-  Q -->|"接外部进程/协议"| A["子进程边车（ACP / SDK / MCP）"]
+  Q -->|"只读会话/工作区"| E["会话只读服务与授权"]
+  Q -->|"Host 内驱动原生会话"| N["sessionController 原生会话"]
+  Q -->|"跨进程 Agent 协议"| A["ACP 边车"]
+  Q -->|"前端传输"| T2["按契约选 RPC / HTTP / SSE"]
 ```
 
 ### 五条铁律
@@ -28,7 +30,7 @@ flowchart TD
 1. **不在模块顶层做 IO**：文件、数据库、spawn 全放进 `apply` 或 `ctx.effect` 的回调里。
 2. **每个注册都有 disposer**：`ctx.effect(() => dispose, 'label')`；卸载后不留路由/定时器/子进程。
 3. **可选服务一律 `ctx.get()` + 降级**，缺依赖直接抛错会让整个 fiber FAILED。
-4. **写操作必须过三件套**：typert 或（同源 + loopback + 自定义头）路由；不信任任何 URL/Origin。
+4. **认证、Peer/操作授权、业务资源归属分别检查**；RPC、loopback、自定义头均不能独自替代授权。
 5. **未在真机验证不写完成**；`dsh --version` 写进交付说明。
 
 ---
@@ -88,16 +90,17 @@ export function apply(ctx) {
 
 ---
 
-## 3. 四条通路怎么选
+## 3. 先选能力所在，再选传输
 
-| 通路 | 适用 | 关键 API | 细节 |
-|---|---|---|---|
-| **typert RPC** | 前端要调 Host 业务方法（默认首选） | `ctx.typert.register(contribution)` + `Remote()` 描述符 | [`typert.md`](reference/typert.md) |
-| **Web 路由** | 健康检查、本地设置、静态资源、SSE | `ctx.webServer.register({kind,path,handler})` | [`routes-auth.md`](reference/routes-auth.md) |
-| **Host 服务/工具** | 给其他插件或模型用 | `ctx.tools.register()`、`ctx.<service>` | [`services.md`](reference/services.md) |
-| **子进程边车** | 接外部协议（ACP/SDK/MCP） | `dsh --profile acp` + stdio JSON-RPC | [`acp.md`](reference/acp.md) |
+| 层次 | 选择 | 场景与依据 |
+|---|---|---|
+| 会话引擎 | 原生 `sessionController` | Host 内驱动真实会话；见 [`native-session.md`](reference/native-session.md) |
+| 会话引擎 | ACP 边车 | 需要跨进程或协议互操作；见 [`acp.md`](reference/acp.md) |
+| 业务能力 | Host 服务/工具 | 给其他插件或模型调用；见 [`services.md`](reference/services.md) |
+| 传输 | typed RPC | 明确客户端契约、codec 与权限；见 [`typert.md`](reference/typert.md) |
+| 传输 | HTTP/SSE | 浏览器响应、流式或静态资源；见 [`routes-auth.md`](reference/routes-auth.md) |
 
-**默认顺序：typert → 路由 → 边车**。能用类型化 RPC 就不要手写 HTTP + JSON 解析。
+原生和 ACP 并列；RPC 与 HTTP/SSE 是另一维度，可与任一引擎配合。SDK/MCP 只在对应契约实际可用时选用。领域预设与隔离见 [`preset-isolation.md`](reference/preset-isolation.md)。
 
 ---
 
@@ -138,13 +141,9 @@ export function apply(ctx, config) {
 
 ---
 
-## 6. 鉴权三层（写操作必须全过）
+## 6. 认证、授权和业务边界
 
-1. `ctx.connection.requestRejection(request)`：Host/Origin/会话三项校验；
-2. 只接受**已认证浏览器**：需要 API 场景时用 `admit(request)` 拿 `peer`；
-3. 业务校验：参数白名单、路径规范化、目标资源归属。
-
-再叠一层本地写操作的习惯（来自 Archive Manager 的实测实现）：**自定义请求头 + loopback 地址 + `sec-fetch-site` 同源 + `Origin` 与 `Host` 一致**。细节与模板见 [`routes-auth.md`](reference/routes-auth.md)。
+先 inspect 当前 `connection` 契约：认证与 Host/Origin 信任检查、所需 Peer 及操作权限、参数和资源归属分别处理；选择 RPC 不能省略业务授权。仅限本机的部署可额外采用 loopback、来源和自定义头防护，但不能把这一部署假设强加给远程或自定义协议场景。见 [`routes-auth.md`](reference/routes-auth.md)。
 
 ---
 
@@ -205,6 +204,8 @@ dsh --profile <p> --dump-config     # 确认层
 | `reference/storage.md` | storageDomain 域、原子写、迁移 |
 | `reference/settings.md` | Config 自动表单、自定义设置页 |
 | `reference/session-data.md` | 会话/工作区数据的读写边界 |
+| `reference/native-session.md` | Host 原生会话驱动与流同步 |
+| `reference/preset-isolation.md` | 领域预设、指令链和技能隔离 |
 | `reference/testing.md` | 假宿主、临时 HOME、版本矩阵 |
 | `reference/acp.md` | ACP 边车（`dsh --profile acp`） |
 | `reference/compat.md` | 版本与生效矩阵 |

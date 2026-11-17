@@ -11,7 +11,7 @@
  * Exit code 1 lists every problem; `--quiet` prints only the summary.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, relative as pathRelative, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -82,10 +82,19 @@ for (const skill of skills) {
     // Paths are only "open this file" claims outside fenced examples; inside a
     // fence the same spelling may be a workspace-relative path from a skeleton.
     const prose = body.replace(/```[\s\S]*?```/g, '')
+    for (const [, link] of prose.matchAll(/\]\(([^)]+)\)/g)) {
+      const target = link.split('#')[0].split('?')[0]
+      if (!target || /^(?:https?:|mailto:)/i.test(target)) continue
+      const resolved = resolve(dirname(file), decodeURIComponent(target))
+      const within = pathRelative(dir, resolved)
+      if (isAbsolute(within) || within === '..' || within.startsWith('../') || within.startsWith('..\\')) {
+        fail(relative, `link leaves skill directory: ${link}`)
+      } else if (!existsSync(resolved)) fail(relative, `points at missing link ${link}`)
+    }
     for (const [, target] of prose.matchAll(REFERENCE_PATTERN)) {
       // A skill ships its own reference/assets; repository tools (scripts/) are
       // resolved from the repository root, which is where the command is run.
-      if (existsSync(join(dir, target)) || existsSync(join(root, target))) continue
+      if (existsSync(join(dir, target)) || (target.startsWith('scripts/') && existsSync(join(root, target)))) continue
       fail(relative, `points at missing file ${target}`)
     }
     for (const [, key] of body.matchAll(REGISTER_PATTERN)) {

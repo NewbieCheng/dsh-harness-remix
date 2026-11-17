@@ -1,7 +1,7 @@
 # 最小可装后端插件（骨架）
 
 > 复制 → 改包名 → `npm test` → `dsh plugin add ./`。
-> 它演示四件事：**Config 自动表单、storageDomain 状态、两条路由（只读 + 带守卫的写）、原子写的设置文件**。
+> 它演示 Config、storageDomain 状态与两条路由；设置文件模块独立示范原子写，不在只读状态请求中使用。写路由的 loopback 守卫只适合该示例的本机部署，不代替认证和业务授权。
 
 ## 目录
 
@@ -28,7 +28,7 @@ dsh --profile desktop
 ## 接口
 
 ```text
-GET  /api/dsh-hello-host/status            → { ok, greeting, hits }（hits +1）
+GET  /api/dsh-hello-host/status            → { ok, greeting, hits }（只读）
 POST /api/dsh-hello-host/greeting          → { ok, greeting, hits }
      header: x-dsh-hello-host: 1           （与 Config.trustHeader 一致）
      body:   { "greeting": "你好" }

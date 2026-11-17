@@ -12,7 +12,7 @@
 | skill | 覆盖 | 什么时候用 |
 |---|---|---|
 | [`dsh-ui-extension`](skills/dsh-ui-extension/SKILL.md) | 插槽选择、元素能力地图、替换与回退、DOM 兜底、主题 token、客户端构建 | “把 DSH 某个位置换成我的组件”“加按钮/面板/设置页”“改主题”“嵌进我的壳” |
-| [`dsh-plugin-backend`](skills/dsh-plugin-backend/SKILL.md) | bundle/profile 清单、Cordis 生命周期、Host 服务、路由与鉴权、typert RPC、存储、设置、会话数据、ACP 边车 | “给插件加后端”“接自己的服务/模型”“存插件数据”“发成可安装包” |
+| [`dsh-plugin-backend`](skills/dsh-plugin-backend/SKILL.md) | bundle/profile、生命周期、Host 服务、认证授权、RPC、存储、原生会话同步、预设隔离与 ACP 边车 | “给插件加后端”“接自己的服务/模型”“存插件数据”“发成可安装包” |
 
 两者共享一份 `shared/`（inspect 用法、冲突矩阵、验收），由脚本生成到各自 `reference/shared/`，保证单独安装也自足。
 
@@ -33,7 +33,7 @@ v1 的两份 SKILL.md 心法不错，但事实层建立在旧快照上：
 ## 安装
 
 ```sh
-node scripts/install-skills.mjs --force                 # 覆盖两套 skill
+node scripts/install-skills.mjs --force                 # 暂存校验，备份后替换两套 skill
 node scripts/install-skills.mjs --force --remove-legacy  # 同时删掉旧名字（dsh-ui-remix / dsh-backend-bridge）
 ```
 
@@ -45,6 +45,8 @@ node scripts/install-skills.mjs --force --remove-legacy  # 同时删掉旧名字
 node scripts/extract-slots.mjs --from-inspect slots.tree.json --version "$(dsh --version)"
 node scripts/sync-shared.mjs          # shared/ → 各 skill
 node scripts/verify-skills.mjs        # 死链、未知槽、Factory 误用、禁用词、行数上限
+node scripts/extract-slots.mjs --check # 检查快照和生成文档；不代表实时树已核对
+node --test tests/*.test.mjs skills/dsh-plugin-backend/assets/skeleton-host/tests/*.test.mjs
 ```
 
 - 事实写进 `reference/`，`SKILL.md` 只放决策（≤320 行）；

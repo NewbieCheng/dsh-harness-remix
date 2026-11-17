@@ -16,6 +16,14 @@
 
 **两处版本不一致这件事本身就是结论**：只读源码会漏掉 16 个槽和整类 `hoc` 扩展点。
 
+### 本轮审查补充（2026-11-17）
+
+- ✅ 此会话的 `dsh --version` 输出 `0.2.2-rc.3`；它是 CLI 版本，不单独证明 Web GUI 二进制版本相同。
+- ✅ 当前 Host inspect 中 `sessionController` 有 create/prompt/follow/cancel/modelCatalog/projections；`follow` 签名、帧类型以实时 inspect 为准。`connection` 暴露 requestRejection、admit 等能力。
+- ✅ 当前 client/Service 列表未列出 `remote`；旧版 `$mount` 例子保留为历史线索，不是当前可运行契约。
+- ✅ `shell.overlay` 当前 inspect 是 list/root，实际占位会随 profile 变化。
+- ⛔ OpenFilm 原生桥的审批、重连和 GUI 行为尚未在本次验收，不能根据静态源码或 mock 声称通过。ACP 保留，协议细节须按目标实现重新核验。
+
 ## 2. 已验证（可当事实用）
 
 | 断言 | 证据 |

@@ -5,7 +5,7 @@ description: 改造 DeepSeek Harness（DSH）Web 界面：把官方某个位置�
 
 # DSH UI 扩展（通用）
 
-> **先用 `cordis_inspect` 查真机，再动手。** 插槽清单随版本变（本仓库基线 0.2.2-rc.3 = 116 槽），
+> **先发现 inspect provider 并查询当前宿主，再动手。** 插槽清单随版本变，版本与采集证据见生成表及兼容记录，
 > 本文件给判断方法，`reference/` 给事实，`assets/skeleton/` 给可跑的最小插件。
 > 事实来源：运行中宿主 `client/Slots` inspect + 源码 + 两个已发布插件（Codex UI 2.2.2、Archive Manager 1.3.6）。
 
@@ -29,7 +29,7 @@ flowchart TD
 
 1. **不改 DSH 本体**（`app.asar`、DSH 源码、`vendor/dsh`），只走插槽、样式、注入、配置。
 2. **不手改构建产物**，只改源码再构建。
-3. **能追加就不替换**：替换必须带默认关闭的回退开关，并在交付说明里写明“已移除什么”。
+3. **能追加就不替换**：默认禁用替换功能，提供明确关闭替换并恢复原功能的路径，在交付说明里写明“已移除什么”。
 4. **未真机验证不写完成**；证据见 `reference/shared/acceptance.md`。
 5. **版本写进交付**：`dsh --version` 的输出必须出现在说明里。
 
@@ -66,7 +66,7 @@ flowchart LR
 | **B. 动态 Cordis 包** | 试用、一次性、运行时注入 | **禁止 import**，只能 `React.createElement` + `styles.insert` | `shared/inspect-usage.md` + `Builtin` provider |
 | **C. DOM 兜底** | 官方没有槽、且已确认无法用 A/B | 版本脆弱，必须登记 | `reference/dom-anchors.md` |
 
-**默认顺序：A/B 的官方槽 → 主题 token → C，且 C 必须写进插件登记表。**
+**默认优先官方槽与主题 token，最后考虑 DOM。** 动态工具仅在当前宿主实际提供时可选，不把它当必备能力。三种工作台与 iframe 的信任边界见 [`workbench-integration.md`](reference/workbench-integration.md)。
 
 ---
 
@@ -77,7 +77,7 @@ flowchart LR
 3. **选通路**：能进槽就别动 DOM。
 4. **写组件**：props 从 `PropsRuntime<'槽名'>` 推导，别手抄字段。
 5. **注册**：`ctx.slots.inject(key, () => ctx.slots.register(opts, Component))`，返回 disposer。
-6. **构建/安装**：静态包 `build → dsh plugin add`；动态包 `cordis_define`。
+6. **构建/安装**：静态包先构建再按部署要求安装；动态机制只有当前工具实际提供时才采用。
 7. **验**：见 `reference/shared/acceptance.md`（关→开→关、窄屏、暗色、重复启用）。
 8. **记**：版本、改动、开关、已知限制。
 
@@ -103,7 +103,7 @@ ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
 | `chain` | `select(owner)` | `priority` | 按优先级取第一个非 null |
 | `hoc` | `id` | `key`、`order` | 包裹 owner 内容，不改内容本身 |
 
-- **`priority` 只在“明确替换”时写**，数值越小越优先；不写默认 0。
+- **`priority` 只在“明确替换”时写**，数值越小越优先；不写默认 0。list/keyed 也必须检查 id/key 占用：复用已有标识可能覆盖，不能一概视为追加。
 - **替换一个已被占的单占槽**要走 `reference/elements.md` §3 的三步，不允许“注册了事”。
 - 动态包的浏览器半由门面自动分配更低的 `priority`，**不要手写**。
 
@@ -113,7 +113,7 @@ ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
 
 `reference/elements.md` 按界面区域给出：**这个元素属于哪个宿主模块 → 有没有槽 → 是不是替换 → 推荐方案 → 风险**。
 `reference/slots.by-area.md` 是同一批槽按“侧栏 / 输入区 / 消息区 / 设置 / 插件管理 / 右栏 / 外壳”的区域导航。
-`reference/slots.generated.md` 是**生成的全表**（116 槽 + 13 Factory），任何数字以它为准。
+`reference/slots.generated.md` 是**特定版本的生成快照**，实时能力以当前 inspect 为准。
 
 判定顺序：
 
@@ -133,7 +133,7 @@ ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
 - 只用语义 token：`--dsw-alias-bg-base` / `-bg-layer-1` / `-label-primary` / `-border-l1` / `-brand-primary` / `-state-*`。
 - 亮暗两套自动成立的前提是**不写颜色字面量**；必须写时按 `[data-theme]` 各给一份。
 - 自己的样式一律加容器前缀（`[data-my-plugin]`），不写裸元素选择器。
-- 覆盖层级：`shell.overlay` 在壳内；要真正全屏用 `createPortal(document.body)` 且 `z-index ≤ 1100`（官方弹窗约 1200）。
+- 覆盖层级：`shell.overlay` 在壳内；是否需要 portal 及具体层级应在目标宿主实测，避免遮挡官方弹窗。
 - 细节见 `reference/theming.md`。
 
 ---
@@ -160,7 +160,8 @@ ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
 
 | 文件 | 内容 |
 |---|---|
-| `reference/slots.generated.md` | 116 槽全表（生成，含类型/作用域/替换风险/声明者） |
+| `reference/slots.generated.md` | 槽位快照（生成，含类型/作用域/替换风险/声明者） |
+| `reference/workbench-integration.md` | 原生 UI、自有工作台与外部嵌入的边界 |
 | `reference/slots.by-area.md` | 按界面区域导航的选槽表 |
 | `reference/elements.md` | 元素能力地图：模块归属、可否替换、方案与风险 |
 | `reference/dom-anchors.md` | 哈希类名安全锚点、注入范式、清理 |

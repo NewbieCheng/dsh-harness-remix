@@ -126,7 +126,7 @@ dsh --profile desktop --dump-config      # 应看到 "# == my-plugin" 一层
 
 | 改了 | 要做什么 |
 |---|---|
-| client 源码 | `pnpm build` → 刷新页面（HMR 可用时自动） |
+| client 源码 | 构建 → 刷新；只有同一 checkout 的对应 watcher 已确认运行且重建时才可依赖 HMR |
 | host 源码（ESM，无 build） | Host 重载 → 刷新；被 import 的模块先 `touch` |
 | `cordis.patch.yml` | 重新 `dsh plugin add` 或重启 Host |
 | 只改 CSS 文件 | 若走运行时注入，保存+刷新；若打进 bundle，重新 build |

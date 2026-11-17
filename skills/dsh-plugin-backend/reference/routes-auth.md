@@ -1,7 +1,7 @@
 # Web 路由与鉴权
 
 > 路由适合：健康检查、本地设置、静态资源、SSE。
-> 业务数据交互**优先 typert**（见 [`typert.md`](typert.md)），因为类型、codec、鉴权都是现成的。
+> 选择 RPC 或路由取决于调用方、流式需求和实际宿主契约；类型与 codec 不替代身份认证、操作授权及资源归属检查。参见 [`typert.md`](typert.md)。
 
 ## 1. 注册
 
@@ -46,7 +46,7 @@ function guard(ctx, request, response) {
 }
 ```
 
-> `requestRejection()` 已包含“已认证浏览器”的判定；只有需要拿到 `peer` 做后续授权时才用 `admit()`。
+> `requestRejection()` 的确切信任检查以当前宿主契约为准；需要识别或授权 Peer 时使用宿主支持的 admission 接口。不要假设所有认证凭据都是浏览器。
 > 把 `headers` 包成对象再传给 `admit` 是错写法：它接受的是 request 本身。
 
 ## 3. 本地写操作的四件套
@@ -84,15 +84,18 @@ function readJsonBody(request, limit = 64 * 1024) {
   return new Promise((resolve) => {
     const chunks = []
     let bytes = 0
+    let invalid = false
     request.on('data', (chunk) => {
       bytes += chunk.length
-      if (bytes > limit) return          // 静默丢弃超限部分，最后 JSON.parse 会失败
-      chunks.push(chunk)
+      if (bytes > limit) { invalid = true; chunks.length = 0; return }
+      if (!invalid) chunks.push(chunk)
     })
     request.on('end', () => {
+      if (invalid) { resolve(null); return }
       try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))) }
       catch { resolve(null) }
     })
+    request.on('aborted', () => resolve(null))
     request.on('error', () => resolve(null))
   })
 }
@@ -100,18 +103,7 @@ function readJsonBody(request, limit = 64 * 1024) {
 
 ## 5. 幂等注册（重载安全）
 
-```js
-function releaseExisting(server, path) {
-  // 只在确实会二次注册时才需要；优先靠 disposer，别默认做反射清理
-  const raw = Reflect.get(server, Symbol.for('cordis.original')) ?? server
-  for (const table of ['exact', 'prefixes']) {
-    const map = Reflect.get(raw, table)
-    if (map instanceof Map) map.delete(path)
-  }
-}
-```
-
-⚠️ 这是**反射兜底**，依赖内部字段（`exact`/`prefixes`/`symbols.original`）。正常路径应该是：注册 → 保存 disposer → 卸载时调用。反射清理只在“确认宿主残留了旧路由”时用，并写注释说明原因。
+注册只管理插件自己的路由，保存 disposer 并在卸载时调用；发生冲突应诊断所有者，不反射修改宿主内部表或删除其他插件的路由。
 
 ## 6. SSE / 流式
 

@@ -74,7 +74,9 @@ Remote('doThing')(MyService.prototype.doThing, { kind: 'method', name: 'doThing'
 - `source: 'json'` 表示普通 JSON；业务对象要用 lookup（见 `TypertLookupMap`），不确定就转成 JSON；
 - 返回形状变化 = 破坏性变更，加字段可以，改字段名不行。
 
-## 3. 客户端侧
+## 3. 客户端侧（历史示意，未验证，不可复制为现行契约）
+
+当前运行实例的 client/Service 目录未列出 `remote`；不能据此证明其他版本一定没有。先检查目标宿主实际提供的 Remote API 与构建示例，以下仅保留历史线索。
 
 ```js
 export const inject = ['remote']

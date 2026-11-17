@@ -10,7 +10,7 @@
 import Schema from '@deepseek-ai/schemastery'
 import { defineDomain } from '@deepseek-ai/dsh-storage-domain'
 import { localWriteRejection, normalizeGreeting, statusPayload } from './src/logic.js'
-import { readSettings, updateSettings } from './src/settings.js'
+import { readJsonBody } from './src/body.js'
 
 export const name = 'dsh-hello-host'
 
@@ -35,27 +35,6 @@ const stateDomain = defineDomain({
     initial: { ok: true, greeting: 'hello', hits: 0 },
   },
 })
-
-/** Read the JSON body with a hard size cap; `null` means "not a JSON object". */
-function readJsonBody(request, limit = 16 * 1024) {
-  return new Promise((resolve) => {
-    const chunks = []
-    let bytes = 0
-    request.on('data', (chunk) => {
-      bytes += chunk.length
-      if (bytes <= limit) chunks.push(chunk)
-    })
-    request.on('end', () => {
-      try {
-        const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-        resolve(parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null)
-      } catch {
-        resolve(null)
-      }
-    })
-    request.on('error', () => resolve(null))
-  })
-}
 
 function sendJson(response, statusCode, value) {
   response.writeHead(statusCode, {
@@ -94,8 +73,6 @@ export function apply(ctx, config) {
         const gate = await opened().catch(() => undefined)
         if (gate === undefined) { sendJson(response, 503, { ok: false, error: 'storage unavailable' }); return }
         const state = statusPayload(gate.global.get())
-        await gate.global.set({ ...state, hits: state.hits + 1 })
-        await updateSettings((current) => ({ ...current, lastSeen: new Date().toISOString() })).catch(() => {})
         sendJson(response, 200, state)
       },
     },

@@ -169,7 +169,7 @@ const Cover = () => ReactDOM.createPortal(
 | 双滚动条 / 焦点逃逸 | iframe 内部自己滚；宿主不要 `overflow:hidden` |
 | 主题不一致 | 传主题参数或 postMessage，统一用 `--dsw-alias-*` |
 
-🟡 这一条的 Host 侧细节随版本变化，落地前用 `cordis_inspect` 与真机确认（0.2.2-rc.3 未在本仓库复核）。
+⛔ 以上仅为待验证的部署假设，并非通用可用配方；不要复制 token URL、反向代理或放宽 CSP。必须先确认目标宿主支持的嵌入方式、认证与策略，再经真实环境验证。
 
 ---
 

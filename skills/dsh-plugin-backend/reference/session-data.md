@@ -1,7 +1,7 @@
 # 会话与工作区数据：读写边界
 
-> **一句话：读可以随便读（用公开只读接口），写只能走官方服务。**
-> 直接改会话工件 = 升级即损坏，这条没有例外。
+> **一句话：读取也必须经过身份与资源授权，写入走经核实的官方服务。**
+> 不直接改会话工件；插件自己的业务绑定不等于官方会话索引。
 
 ## 1. 数据在哪
 
@@ -14,23 +14,9 @@ $DSH_HOME/
 
 会话 ID 与 cwd 的映射、标题、投影都在官方服务里，不要自己重建索引。
 
-## 2. 读：优先内存，其次持久化
+## 2. 读：使用宿主确认的只读接口
 
-```js
-// 有活实例：读快照，不激活、不改变状态
-const live = ctx.get('sessions')?.get(sessionId)
-const events = typeof live?.snapshotEvents === 'function' ? live.snapshotEvents() : undefined
-
-// 没有活实例：只读打开
-const persistence = ctx.get('sessionPersistence')
-const handle = await persistence.open(sessionId, 'read')
-const stored = await handle.read?.()   // 具体形状以 inspect 为准
-```
-
-规则：
-- `access: 'read'` 打开，**不要**用写权限只为读；
-- 读完即关；
-- 大列表分页，别一次 `list()` 全量再过滤。
+先验证调用主体对目标 session 的访问权限，再查询当前 `sessionController.events`、`follow` 和持久化服务的精确契约。根据需求选择可分页的历史、投影或已存在的内存快照，不为读取申请写权限。若使用持久化 handle，以当前版本的返回类型确认读取与关闭方式；不要猜测 `open` 参数或 handle 方法。大列表按可用的分页接口分批读取。
 
 ## 3. 投影与缓存
 
@@ -50,22 +36,7 @@ const stored = await handle.read?.()   // 具体形状以 inspect 为准
 
 ## 5. 危险操作红线
 
-Archive Manager 为了让会话跟着工作区走，**直接重写过 zstd 首帧的 `cwd`**（解压首帧→改 header→重压→拼接剩余帧）。它能这么做是因为：
-
-- 有 zstd 帧结构校验（魔数/块类型/校验和）；
-- 有测试覆盖；
-- 有明确的版本假设。
-
-**通用插件不要模仿**。如果非做不可：
-
-```text
-[ ] 先备份原文件（同目录 .bak，保留时间戳）
-[ ] 校验帧结构，失败即放弃（不写半成品）
-[ ] 写入用 tmp→rename
-[ ] 有单测：正常帧、截断帧、非 zstd、空文件
-[ ] 在 COMPAT 里标明“依赖会话格式 vX”
-[ ] 升级 DSH 后先跑一次诊断再启用
-```
+历史项目曾直接重写会话工件头部；它依赖内部格式，属于不可移植的高风险反例，不是通用方案。迁移或移动必须使用当前宿主确认的公开能力；缺失时明确不支持，不能自行改写用户会话。
 
 ## 6. 诊断
 

@@ -18,7 +18,7 @@
 | 改了 | 构建 | 生效 |
 |---|---|---|
 | 后端源码（纯 ESM） | 否 | Host 重载 + 刷新；被 import 的模块先 `touch` |
-| 客户端源码 | **是** | 刷新页面（HMR 可用时自动） |
+| 客户端源码 | **是** | 刷新；只有同一 checkout 的对应 watcher 已确认运行且重建时才可依赖 HMR |
 | `cordis.patch.yml` | 否 | 重新 `dsh plugin add` 或重启 Host |
 | 运行时注入的 CSS/JS | 否 | 保存 + 刷新 |
 | 插件安装/升级 | — | 按管理器 `nextStep`，需要时重启 |

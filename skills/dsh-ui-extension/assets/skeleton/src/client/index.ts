@@ -18,7 +18,7 @@ const BUTTON = 'dsh-hello-ui.hello'
 const SECTION = 'dsh-hello-ui'
 
 export function apply(ctx) {
-  ctx.slots.inject('conversation.input.right', () =>
+  const disposeButton = ctx.slots.inject('conversation.input.right', () =>
     ctx.slots.register(
       {
         name: 'conversation.input.right',
@@ -49,7 +49,7 @@ export function apply(ctx) {
     ),
   )
 
-  ctx.slots.inject('settings.section', () =>
+  const disposeSection = ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       {
         name: 'settings.section',
@@ -65,4 +65,5 @@ export function apply(ctx) {
         ),
     ),
   )
+  return () => { disposeSection(); disposeButton() }
 }
